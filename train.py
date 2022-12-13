@@ -42,6 +42,7 @@ class LitResnet(pl.LightningModule):
         super().__init__()
 
         self.save_hyperparameters()
+        self.num_classes = num_classes
         self.model = timm.create_model('resnet18', pretrained=True, num_classes=num_classes)
 
     def forward(self, x):
@@ -60,7 +61,7 @@ class LitResnet(pl.LightningModule):
         logits = self(x)
         loss = F.nll_loss(logits, y)
         preds = torch.argmax(logits, dim=1)
-        acc = accuracy(preds, y)
+        acc = accuracy(preds, y, task="multiclass", num_classes=self.num_classes)
 
         if stage:
             self.log(f"{stage}/loss", loss, prog_bar=True)
@@ -190,7 +191,7 @@ def train(model, datamodule, sm_training_env):
 
     acc = [0 for c in list_of_classes]
     for c in list_of_classes:
-        acc[c] = ((preds == labels) * (labels == c)).float() / (max(labels == c).sum(), 1))
+        acc[c] = ((preds == labels) * (labels == c)).float() / (max(labels == c).sum(), 1)
     print("Accuracy {}".format(acc))
 
     with open(output_dir / "accuracy_per_class.json", "w") as outfile:
