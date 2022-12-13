@@ -13,6 +13,7 @@ from torchvision.datasets.utils import extract_archive
 from sklearn.model_selection import train_test_split
 from pathlib import Path
 
+from PIL import Image
 
 dvc_repo_url = os.environ.get('DVC_REPO_URL')
 dvc_branch = os.environ.get('DVC_BRANCH')
@@ -21,9 +22,11 @@ git_user = os.environ.get('GIT_USER', "sagemaker")
 git_email = os.environ.get('GIT_EMAIL', "sagemaker-processing@example.com")
 
 ml_root = Path("/opt/ml/processing")
+# ml_root = Path("processing")
 
-dataset_zip = ml_root / "input" / "flowers.zip"
-git_path = ml_root / "sagemaker-flower"
+dataset_zip = ml_root / "input" / "intel_images.zip"
+# dataset_zip = ml_root / "intel_images.zip"
+git_path = ml_root / "sagemaker-intel-images"
 
 def configure_git():
     subprocess.check_call(['git', 'config', '--global', 'user.email', f'"{git_email}"'])
@@ -69,9 +72,11 @@ def sync_data_with_dvc(repo):
 def write_dataset(image_paths, output_dir):
     for img_path in image_paths:
         Path(output_dir / img_path.parent.stem).mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(img_path, output_dir / img_path.parent.stem / img_path.name)
+        # shutil.copyfile(img_path, output_dir / img_path.parent.stem / img_path.name)
+        im = Image.open(img_path).resize((224,244))
+        im.save(output_dir / img_path.parent.stem / img_path.name)
 
-def generate_train_test_split():
+def resize_train_test_dataset():
     dataset_extracted = ml_root / "tmp"
     dataset_extracted.mkdir(parents=True, exist_ok=True)
     
@@ -82,15 +87,15 @@ def generate_train_test_split():
         to_path=dataset_extracted
     )
     
-    dataset_full = list((dataset_extracted / "flowers").glob("*/*.jpg"))
-    labels = [x.parent.stem for x in dataset_full]
+    dataset_train = list((dataset_extracted / "seg_train/seg_train").glob("*/*.jpg"))
+    labels = [x.parent.stem for x in dataset_train]
     
     print(":: Dataset Class Counts: ", Counter(labels))
+
+    dataset_test = list((dataset_extracted / "seg_test/seg_test").glob("*/*.jpg"))
     
-    d_train, d_test = train_test_split(dataset_full, stratify=labels)
-    
-    print("\t:: Train Dataset Class Counts: ", Counter(x.parent.stem for x in d_train))
-    print("\t:: Test Dataset Class Counts: ", Counter(x.parent.stem for x in d_test))
+    print("\t:: Train Dataset Class Counts: ", Counter(x.parent.stem for x in dataset_train))
+    print("\t:: Test Dataset Class Counts: ", Counter(x.parent.stem for x in dataset_test))
     
     for path in ['train', 'test']:
         output_dir = git_path / "dataset" / path
@@ -98,8 +103,8 @@ def generate_train_test_split():
         output_dir.mkdir(parents=True, exist_ok=True)
 
     print(":: Writing Datasets")
-    write_dataset(d_train, git_path / "dataset" / "train")
-    write_dataset(d_test, git_path / "dataset" / "test")
+    write_dataset(dataset_train, git_path / "dataset" / "train")
+    write_dataset(dataset_test, git_path / "dataset" / "test")
         
     
 if __name__=="__main__":
@@ -114,7 +119,7 @@ if __name__=="__main__":
     
     print(":: Generate Train Test Split")
     # extract the input zip file and split into train and test
-    generate_train_test_split()
+    resize_train_test_dataset()
     
     print(":: Sync Processed Data to Git & DVC")
     sync_data_with_dvc(repo)

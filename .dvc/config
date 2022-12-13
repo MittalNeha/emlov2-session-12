@@ -1,9 +1,0 @@
-[core]
-    remote = storage
-    analytics = false
-[cache]
-    s3 = s3cache
-['remote "storage"']
-    url = s3://sagemaker-ap-south-1-006547668672/sagemaker-flower-dvc
-['remote "s3cache"']
-    url = s3://sagemaker-ap-south-1-006547668672/sagemaker-flower-dvc/cache

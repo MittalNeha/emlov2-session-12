@@ -24,7 +24,7 @@ num_cpus = int(os.environ.get("SM_NUM_CPUS"))
 
 ml_root = Path("/opt/ml")
 
-git_path = ml_root / "sagemaker-flower"
+git_path = ml_root / "sagemaker-intel-images"
 
 dvc_repo_url = os.environ.get('DVC_REPO_URL')
 dvc_branch = os.environ.get('DVC_BRANCH')
@@ -81,7 +81,7 @@ class LitResnet(pl.LightningModule):
         )
         return {"optimizer": optimizer}
 
-class FlowerDataModule(pl.LightningDataModule):
+class IntelImagesDataModule(pl.LightningDataModule):
     def __init__(
         self,
         data_dir: str = "data/",
@@ -100,7 +100,7 @@ class FlowerDataModule(pl.LightningDataModule):
         # data transformations
         self.transforms = T.Compose([
             T.ToTensor(),
-            T.Resize((224, 224)),
+            # T.Resize((224, 224)),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
@@ -184,6 +184,19 @@ def train(model, datamodule, sm_training_env):
     )
     
     trainer.fit(model, datamodule)
+    trainer.eval(model, datamodule)
+
+    list_of_classes = datamodule.classes
+
+    acc = [0 for c in list_of_classes]
+    for c in list_of_classes:
+        acc[c] = ((preds == labels) * (labels == c)).float() / (max(labels == c).sum(), 1))
+    print("Accuracy {}".format(acc))
+
+    with open(output_dir / "accuracy_per_class.json", "w") as outfile:
+        json.dump(acc, outfile)
+
+
 
 def save_scripted_model(model, output_dir):
     script = model.to_torchscript()
@@ -214,7 +227,7 @@ if __name__ == '__main__':
     
     print(":: Classnames: ", img_dset.classes)
     
-    datamodule = FlowerDataModule(data_dir=(git_path / "dataset").absolute(), num_workers=num_cpus)
+    datamodule = IntelImagesDataModule(data_dir=(git_path / "dataset").absolute(), num_workers=num_cpus)
     datamodule.setup()
     
     model = LitResnet(num_classes=datamodule.num_classes)
